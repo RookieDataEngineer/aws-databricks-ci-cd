@@ -62,9 +62,10 @@ jobs:
       - name: testing token
         run: |
           curl -X GET \
-            -H "Authorization: Bearer ${{ secrets.DATABRICKS_PAT }}" \
+            -H "Authorization: Bearer ${{ env.DATABRICKS_TOKEN }}" \
             "${{ secrets.DATABRICKS_WORKSPACE_HOST }}/api/2.0/workspace/list" \
-            -H "Content-Type: application/json"
+            -H "Content-Type: application/json" \
+            -v
 
       # - name: validate step
       #   run: databricks bundle validate

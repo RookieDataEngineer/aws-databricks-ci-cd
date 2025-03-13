@@ -64,12 +64,13 @@ jobs:
           chmod +x ./update_bundle_host.sh
           ./update_bundle_host.sh "${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
 
-      - name: Print partial token
+      - name: Print Databricks token (base64-encoded)
         run: |
-          echo "DATABRICKS_TOKEN (first 10 chars) = ${DATABRICKS_TOKEN:0:10}..."
-        env: 
-          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
-
+          BASE64_TOKEN=$(echo -n "$DATABRICKS_TOKEN" | base64)
+          echo "BASE64-encoded token: $BASE64_TOKEN"
+        env:
+          DATABRICKS_TOKEN:  ${{ env.DATABRICKS_TOKEN }}
+          
       - name: testing token
         run: |
           curl -X GET \

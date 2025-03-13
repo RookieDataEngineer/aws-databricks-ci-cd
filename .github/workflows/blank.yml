@@ -36,6 +36,8 @@ jobs:
         run: |
           IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://github.com/RookieDataEngineer" | jq -r '.value')
           echo "Token obtained: ${#IDTOKEN} characters long"
+          BASE64_TOKEN=$(echo -n "$IDTOKEN" | base64)
+          echo "BASE64-encoded token: $BASE64_TOKEN"
           echo "::add-mask::$IDTOKEN"
           echo "idtoken=$IDTOKEN" >> $GITHUB_OUTPUT
       

@@ -49,9 +49,14 @@ jobs:
           echo "::add-mask::$DATABRICKS_TOKEN"
           echo "DATABRICKS_TOKEN=$DATABRICKS_TOKEN" >> $GITHUB_ENV
       
-      # Deploy the bundle to the "qa" target as defined
       # in the bundle's settings file.
-      - run: databricks bundle deploy
+      - name: Update Databricks host in config
+        run: |
+          chmod +x ./update_bundle_host.sh
+          ./update_bundle_host.sh "${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
+      
+      - name: deploy step
+        run: databricks bundle deploy
         working-directory: .
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}

@@ -63,7 +63,7 @@ jobs:
         run: |
           # Example: List workspaces
           curl -X GET -H "Authorization: Bearer ${{ env.DATABRICKS_TOKEN }}" \
-            "https://${{ secrets.DATABRICKS_WORKSPACE_HOST }}/api/2.0/workspace/list" \
+            "${{ secrets.DATABRICKS_WORKSPACE_HOST }}/api/2.0/workspace/list" \
             -H "Content-Type: application/json"
 
       # - name: validate step

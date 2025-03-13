@@ -41,7 +41,7 @@ jobs:
       - name: Exchange GitHub JWT for Databricks token
         id: get_databricks_token
         run: |
-          DATABRICKS_TOKEN=$(curl --request POST https://${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token \
+          DATABRICKS_TOKEN=$(curl --request POST ${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token \
             --data "subject_token=${{ steps.get_id_token.outputs.id_token }}" \
             --data 'subject_token_type=urn:ietf:params:oauth:token-type:jwt' \
             --data 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
@@ -54,22 +54,7 @@ jobs:
         run: |
           chmod +x ./update_bundle_host.sh
           ./update_bundle_host.sh "${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
-      
-      
-      - name: Test Databricks Connectivity
-        run: |
-          echo "Testing connectivity to Databricks..."
-          echo "Host: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
-          # Show partial token for debugging (optional)
-          echo "Token (first 10 chars): ${DATABRICKS_TOKEN:0:10}******"
 
-          # Make a simple GET request to /Me
-          # --fail means curl will exit with a non-zero code if not 2xx
-          curl --fail -v -X GET \
-            -H "Authorization: Bearer $DATABRICKS_TOKEN" \
-            "${{ secrets.DATABRICKS_WORKSPACE_HOST }}/api/2.0/preview/scim/v2/Me"
-
-          echo "Connectivity test succeeded!"
 
       - name: validate step
         run: databricks bundle validate

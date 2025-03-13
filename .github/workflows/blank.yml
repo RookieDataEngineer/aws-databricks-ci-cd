@@ -71,7 +71,14 @@ jobs:
 
           echo "Connectivity test succeeded!"
 
-      
+      - name: validate step
+        run: databricks bundle validate
+        working-directory: .
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+          DATABRICKS_BUNDLE_ENV: development
+
       - name: deploy step
         run: databricks bundle deploy
         working-directory: .

@@ -65,7 +65,7 @@ jobs:
         working-directory: .
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
-          DATABRICKS_TOKEN: ${{ steps.get_databricks_token.outputs.DATABRICKS_TOKEN  }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
           DATABRICKS_BUNDLE_ENV: development
 
       - name: deploy step
@@ -73,7 +73,7 @@ jobs:
         working-directory: .
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
-          DATABRICKS_TOKEN: ${{ steps.get_databricks_token.outputs.DATABRICKS_TOKEN  }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
           DATABRICKS_BUNDLE_ENV: development
 
 

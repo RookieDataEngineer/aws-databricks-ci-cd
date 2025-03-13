@@ -32,23 +32,26 @@ jobs:
         uses: databricks/setup-cli@main
 
       - name: Get OIDC ID Token
-        id: get_token
+        id: get_id_token
         run: |
           IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://github.com/RookieDataEngineer" | jq -r '.value')
-          echo $IDTOKEN
+          echo "Token obtained: ${#IDTOKEN} characters long"
           echo "::add-mask::$IDTOKEN"
           echo "idtoken=$IDTOKEN" >> $GITHUB_OUTPUT
       
       - name: Exchange GitHub JWT for Databricks token
         id: get_databricks_token
         run: |
+          # Debug the input token length
+          echo "Using token of length: ${#${{ steps.get_id_token.outputs.idtoken }}}"
           DATABRICKS_TOKEN=$(curl --request POST ${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token \
             --data "client_id=${{ secrets.SERVICE_PRINCIPAL_ID }}" \
-            --data "subject_token=${{ steps.get_id_token.outputs.id_token }}" \
+            --data "subject_token=${{ steps.get_id_token.outputs.idtoken  }}" \
             --data 'subject_token_type=urn:ietf:params:oauth:token-type:jwt' \
             --data 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
             --data 'scope=all-apis' | jq -r '.access_token')
-          echo "$DATABRICKS_TOKEN"
+
+          echo "Using token of length: ${#DATABRICKS_TOKEN}"
           echo "::add-mask::$DATABRICKS_TOKEN"
           echo "DATABRICKS_TOKEN=$DATABRICKS_TOKEN" >> $GITHUB_ENV
       

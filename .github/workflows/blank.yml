@@ -59,22 +59,28 @@ jobs:
           chmod +x ./update_bundle_host.sh
           ./update_bundle_host.sh "${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
 
+      - name: testing token
+        run: |
+          # Example: List workspaces
+          curl -X GET -H "Authorization: Bearer ${{ env.DATABRICKS_TOKEN }}" \
+            "https://${{ secrets.DATABRICKS_WORKSPACE_HOST }}/api/2.0/workspace/list" \
+            -H "Content-Type: application/json"
 
-      - name: validate step
-        run: databricks bundle validate
-        working-directory: .
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
-          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
-          DATABRICKS_BUNDLE_ENV: development
+      # - name: validate step
+      #   run: databricks bundle validate
+      #   working-directory: .
+      #   env:
+      #     DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+      #     DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+      #     DATABRICKS_BUNDLE_ENV: development
 
-      - name: deploy step
-        run: databricks bundle deploy
-        working-directory: .
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
-          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
-          DATABRICKS_BUNDLE_ENV: development
+      # - name: deploy step
+      #   run: databricks bundle deploy
+      #   working-directory: .
+      #   env:
+      #     DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+      #     DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+      #     DATABRICKS_BUNDLE_ENV: development
 
 
           

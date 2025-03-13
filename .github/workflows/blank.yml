@@ -59,7 +59,7 @@ jobs:
       - name: Test Databricks Connectivity
         run: |
           echo "Testing connectivity to Databricks..."
-          echo "Host: $DATABRICKS_HOST"
+          echo "Host: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
           # Show partial token for debugging (optional)
           echo "Token (first 10 chars): ${DATABRICKS_TOKEN:0:10}******"
 
@@ -67,7 +67,7 @@ jobs:
           # --fail means curl will exit with a non-zero code if not 2xx
           curl --fail -v -X GET \
             -H "Authorization: Bearer $DATABRICKS_TOKEN" \
-            "$DATABRICKS_HOST/api/2.0/preview/scim/v2/Me"
+            "${{ secrets.DATABRICKS_WORKSPACE_HOST }}/api/2.0/preview/scim/v2/Me"
 
           echo "Connectivity test succeeded!"
 

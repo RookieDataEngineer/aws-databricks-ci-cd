@@ -29,12 +29,13 @@ jobs:
       - name: Install Databricks CLI and dependencies
         run: |
           pip install databricks-cli>=0.18.0 databricks-sdk
-      
-      - name: Request GitHub OIDC Token
-        id: get_id_token
-        uses: actions/id-token-request@v2
-        with:
-          audience: https://github.com/RookieDataEngineer
+
+      - name: Get OIDC ID Token
+        id: get_token
+        run: |
+          IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://github.com/RookieDataEngineer" | jq -r '.value')
+          echo "::add-mask::$IDTOKEN"
+          echo "idtoken=$IDTOKEN" >> $GITHUB_OUTPUT
       
       - name: Exchange GitHub JWT for Databricks token
         id: get_databricks_token

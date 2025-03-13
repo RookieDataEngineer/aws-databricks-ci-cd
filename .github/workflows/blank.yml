@@ -42,8 +42,6 @@ jobs:
       - name: Exchange GitHub JWT for Databricks token
         id: get_databricks_token
         run: |
-          # Debug the input token length
-          echo "Using token of length: ${#${{ steps.get_id_token.outputs.idtoken }}}"
           DATABRICKS_TOKEN=$(curl --request POST ${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token \
             --data "client_id=${{ secrets.SERVICE_PRINCIPAL_ID }}" \
             --data "subject_token=${{ steps.get_id_token.outputs.idtoken  }}" \

@@ -35,7 +35,6 @@ jobs:
         id: get_token
         run: |
           IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://github.com/RookieDataEngineer" | jq -r '.value')
-          echo "$IDTOKEN"
           echo "::add-mask::$IDTOKEN"
           echo "idtoken=$IDTOKEN" >> $GITHUB_OUTPUT
       
@@ -50,18 +49,13 @@ jobs:
           echo "::add-mask::$DATABRICKS_TOKEN"
           echo "DATABRICKS_TOKEN=$DATABRICKS_TOKEN" >> $GITHUB_ENV
       
-      - name: Deploy DLT using DABs
-        run: |
-          # Set up Databricks CLI profile
-          mkdir -p ~/.databrickscfg
-          echo "[DEFAULT]" > ~/.databrickscfg
-          echo "host = https://${{ secrets.DATABRICKS_WORKSPACE_HOST }}" >> ~/.databrickscfg
-          echo "token = $DATABRICKS_TOKEN" >> ~/.databrickscfg
       # Deploy the bundle to the "qa" target as defined
       # in the bundle's settings file.
       - run: databricks bundle deploy
         working-directory: .
         env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
           DATABRICKS_BUNDLE_ENV: development
 
 

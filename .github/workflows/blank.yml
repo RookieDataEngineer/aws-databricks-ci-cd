@@ -38,16 +38,6 @@ jobs:
           echo "Token obtained: ${#IDTOKEN} characters long"
           echo "::add-mask::$IDTOKEN"
           echo "idtoken=$IDTOKEN" >> $GITHUB_OUTPUT
-      
-      - name: testing something
-        id: get_databricks_token_something
-        run: |
-          curl --request POST ${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token \
-            --data "client_id=${{ secrets.SERVICE_PRINCIPAL_ID }}" \
-            --data "subject_token=${{ steps.get_id_token.outputs.idtoken  }}" \
-            --data 'subject_token_type=urn:ietf:params:oauth:token-type:jwt' \
-            --data 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
-            --data 'scope=all-apis' 
 
       - name: Exchange GitHub JWT for Databricks token
         id: get_databricks_token
@@ -62,8 +52,6 @@ jobs:
           echo "Using token of length: ${#DATABRICKS_TOKEN}"
           echo "::add-mask::$DATABRICKS_TOKEN"
           echo "DATABRICKS_TOKEN=$DATABRICKS_TOKEN" >> $GITHUB_ENV
-
-
       
       # in the bundle's settings file.
       - name: Update Databricks host in config
@@ -71,36 +59,21 @@ jobs:
           chmod +x ./update_bundle_host.sh
           ./update_bundle_host.sh "${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
 
-      - name: Print Databricks token (base64-encoded)
-        run: |
-          BASE64_TOKEN=$(echo -n "$DATABRICKS_TOKEN" | base64)
-          echo "BASE64-encoded token: $BASE64_TOKEN"
+      - name: validate step
+        run: databricks bundle validate
+        working-directory: .
         env:
-          DATABRICKS_TOKEN:  ${{ env.DATABRICKS_TOKEN }}
-          
-      - name: testing token
-        run: |
-          curl -X GET \
-            -H "Authorization: Bearer ${{ env.DATABRICKS_TOKEN }}" \
-            "${{ secrets.DATABRICKS_WORKSPACE_HOST }}/api/2.0/workspace/list" \
-            -H "Content-Type: application/json" \
-            -v
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+          DATABRICKS_BUNDLE_ENV: development
 
-      # - name: validate step
-      #   run: databricks bundle validate
-      #   working-directory: .
-      #   env:
-      #     DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
-      #     DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
-      #     DATABRICKS_BUNDLE_ENV: development
-
-      # - name: deploy step
-      #   run: databricks bundle deploy
-      #   working-directory: .
-      #   env:
-      #     DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
-      #     DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
-      #     DATABRICKS_BUNDLE_ENV: development
+      - name: deploy step
+        run: databricks bundle deploy
+        working-directory: .
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+          DATABRICKS_BUNDLE_ENV: development
 
 
           

@@ -40,7 +40,7 @@ jobs:
           echo "idtoken=$IDTOKEN" >> $GITHUB_OUTPUT
       
       - name: testing something
-        id: get_databricks_token
+        id: get_databricks_token_something
         run: |
           curl --request POST ${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token \
             --data "client_id=${{ secrets.SERVICE_PRINCIPAL_ID }}" \

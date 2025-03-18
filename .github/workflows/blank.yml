@@ -58,14 +58,6 @@ jobs:
           chmod +x ./update_bundle_host.sh
           ./update_bundle_host.sh "${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
 
-      - name: Run Bundle Validation
-        run: databricks bundle validate
-        working-directory: .
-        env:
-          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
-          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
-          DATABRICKS_BUNDLE_ENV: development
-
   deploy:
     name: Deploy Application
     runs-on: ubuntu-latest
@@ -77,6 +69,14 @@ jobs:
 
       - name: Install Databricks CLI and Dependencies
         uses: databricks/setup-cli@main
+
+      - name: Run Bundle Validation
+        run: databricks bundle validate
+        working-directory: .
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+          DATABRICKS_BUNDLE_ENV: development
 
       - name: Deploy Bundle
         run: databricks bundle deploy

@@ -17,7 +17,7 @@ fi
 # Get the Databricks host URL from the first argument
 HOST_URL="$1"
 
-# Path to your bundle file
+# Path to your bundle file 
 BUNDLE_FILE="databricks.yml"
 
 # Check if the bundle file exists

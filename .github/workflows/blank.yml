@@ -2,25 +2,25 @@ name: Deploy DLT Pipeline with DABs
 
 on:
   push:
-    branches: [ '*' ]  # Trigger on push to any branch.
+    branches: [ '*' ]
   pull_request:
     branches: [ '*' ]
-    types: [opened, synchronize, reopened]
+    types: [ opened, synchronize, reopened ]
 
 jobs:
   validate:
     name: Run Validations
     runs-on: ubuntu-latest
     permissions:
-      # Required for GitHub OIDC token authentication
       id-token: write
       contents: read
-    
+    outputs:
+      databricks_token: ${{ steps.get_databricks_token.outputs.databricks_token }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Fetch full history for accurate bundle comparison
+          fetch-depth: 0
       
       - name: Set up Python 3.10
         uses: actions/setup-python@v4
@@ -28,7 +28,6 @@ jobs:
           python-version: '3.10'
       
       - name: Install Databricks CLI and Dependencies
-        # See https://github.com/databricks/setup-cli for more details.
         uses: databricks/setup-cli@main
 
       - name: Get OIDC ID Token
@@ -48,12 +47,10 @@ jobs:
             --data 'subject_token_type=urn:ietf:params:oauth:token-type:jwt' \
             --data 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
             --data 'scope=all-apis' | jq -r '.access_token')
-
+          
           echo "Using token of length: ${#DATABRICKS_TOKEN}"
           echo "::add-mask::$DATABRICKS_TOKEN"
-          echo "DATABRICKS_TOKEN=$DATABRICKS_TOKEN" >> $GITHUB_ENV
-      
-      
+          echo "databricks_token=$DATABRICKS_TOKEN" >> $GITHUB_OUTPUT
 
   deploy:
     name: Deploy Application
@@ -77,7 +74,7 @@ jobs:
         working-directory: .
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
-          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+          DATABRICKS_TOKEN: ${{ needs.validate.outputs.databricks_token }}
           DATABRICKS_BUNDLE_ENV: development
 
       - name: Deploy Bundle
@@ -85,5 +82,5 @@ jobs:
         working-directory: .
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
-          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+          DATABRICKS_TOKEN: ${{ needs.validate.outputs.databricks_token }}
           DATABRICKS_BUNDLE_ENV: development

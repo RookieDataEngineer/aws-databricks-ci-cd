@@ -2,13 +2,14 @@ name: Deploy DLT Pipeline with DABs
 
 on:
   push:
-    branches: [ main ]
+    branches: [ '*' ]  # Trigger on push to any branch.
   pull_request:
-    branches: [ main ]
+    branches: [ '*' ]
     types: [opened, synchronize, reopened]
 
 jobs:
-  deploy:
+  validate:
+    name: Run Validations
     runs-on: ubuntu-latest
     permissions:
       # Required for GitHub OIDC token authentication
@@ -16,19 +17,18 @@ jobs:
       contents: read
     
     steps:
-      - name: Checkout code
+      - name: Checkout Code
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0  # Fetch all history for proper bundle comparison
+          fetch-depth: 0  # Fetch full history for accurate bundle comparison
       
-      - name: Set up Python
+      - name: Set up Python 3.10
         uses: actions/setup-python@v4
         with:
           python-version: '3.10'
       
-      - name: Install Databricks CLI and dependencies
-        # Download the Databricks CLI.
-      # See https://github.com/databricks/setup-cli
+      - name: Install Databricks CLI and Dependencies
+        # See https://github.com/databricks/setup-cli for more details.
         uses: databricks/setup-cli@main
 
       - name: Get OIDC ID Token
@@ -39,12 +39,12 @@ jobs:
           echo "::add-mask::$IDTOKEN"
           echo "idtoken=$IDTOKEN" >> $GITHUB_OUTPUT
 
-      - name: Exchange GitHub JWT for Databricks token
+      - name: Exchange GitHub JWT for Databricks Token
         id: get_databricks_token
         run: |
-          DATABRICKS_TOKEN=$(curl --request POST ${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token \
+          DATABRICKS_TOKEN=$(curl --request POST "${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token" \
             --data "client_id=${{ secrets.SERVICE_PRINCIPAL_ID }}" \
-            --data "subject_token=${{ steps.get_id_token.outputs.idtoken  }}" \
+            --data "subject_token=${{ steps.get_id_token.outputs.idtoken }}" \
             --data 'subject_token_type=urn:ietf:params:oauth:token-type:jwt' \
             --data 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
             --data 'scope=all-apis' | jq -r '.access_token')
@@ -53,13 +53,12 @@ jobs:
           echo "::add-mask::$DATABRICKS_TOKEN"
           echo "DATABRICKS_TOKEN=$DATABRICKS_TOKEN" >> $GITHUB_ENV
       
-      # in the bundle's settings file.
-      - name: Update Databricks host in config
+      - name: Update Databricks Host in Config
         run: |
           chmod +x ./update_bundle_host.sh
           ./update_bundle_host.sh "${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
 
-      - name: validate step
+      - name: Run Bundle Validation
         run: databricks bundle validate
         working-directory: .
         env:
@@ -67,31 +66,22 @@ jobs:
           DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
           DATABRICKS_BUNDLE_ENV: development
 
-      - name: deploy step
+  deploy:
+    name: Deploy Application
+    runs-on: ubuntu-latest
+    needs: [validate]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/development' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/production')
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Install Databricks CLI and Dependencies
+        uses: databricks/setup-cli@main
+
+      - name: Deploy Bundle
         run: databricks bundle deploy
         working-directory: .
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
           DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
           DATABRICKS_BUNDLE_ENV: development
-
-
-          
-      #     # Update DLT pipeline
-      #     databricks bundle run \
-      #       --target ${{ secrets.DATABRICKS_ENVIRONMENT }} \
-      #       --job-id ${{ secrets.DLT_PIPELINE_ID }} \
-      #       --as-run-submit
-      
-      # - name: Verify Deployment
-      #   run: |
-      #     # Get the pipeline status
-      #     PIPELINE_STATUS=$(databricks pipelines get --pipeline-id ${{ secrets.DLT_PIPELINE_ID }} --output JSON | jq -r '.state')
-      #     echo "Pipeline Status: $PIPELINE_STATUS"
-          
-      #     if [[ "$PIPELINE_STATUS" == "IDLE" || "$PIPELINE_STATUS" == "RUNNING" ]]; then
-      #       echo "DLT Pipeline successfully deployed and running"
-      #     else
-      #       echo "DLT Pipeline deployment issue. Status: $PIPELINE_STATUS"
-      #       exit 1
-      #     fi

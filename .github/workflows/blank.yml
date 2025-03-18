@@ -53,10 +53,7 @@ jobs:
           echo "::add-mask::$DATABRICKS_TOKEN"
           echo "DATABRICKS_TOKEN=$DATABRICKS_TOKEN" >> $GITHUB_ENV
       
-      - name: Update Databricks Host in Config
-        run: |
-          chmod +x ./update_bundle_host.sh
-          ./update_bundle_host.sh "${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
+      
 
   deploy:
     name: Deploy Application
@@ -70,6 +67,11 @@ jobs:
       - name: Install Databricks CLI and Dependencies
         uses: databricks/setup-cli@main
 
+      - name: Update Databricks Host in Config
+        run: |
+          chmod +x ./update_bundle_host.sh
+          ./update_bundle_host.sh "${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
+          
       - name: Run Bundle Validation
         run: databricks bundle validate
         working-directory: .

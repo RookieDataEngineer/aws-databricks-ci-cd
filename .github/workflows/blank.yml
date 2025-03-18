@@ -11,10 +11,6 @@ jobs:
   validate:
     name: Run Validations
     runs-on: ubuntu-latest
-    permissions:
-      # Required for GitHub OIDC token authentication
-      id-token: write
-      contents: read
     
     steps:
       - name: Checkout Code
@@ -35,6 +31,10 @@ jobs:
   deploy:
     name: Deploy Application
     runs-on: ubuntu-latest
+    permissions:
+      # Required for GitHub OIDC token authentication
+      id-token: write
+      contents: read
     needs: [validate]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/development' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/production')
     steps:
@@ -43,7 +43,7 @@ jobs:
 
       - name: Install Databricks CLI and Dependencies
         uses: databricks/setup-cli@main
-        
+
       - name: Get OIDC ID Token
         id: get_id_token
         run: |

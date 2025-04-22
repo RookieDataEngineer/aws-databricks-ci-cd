@@ -12,6 +12,8 @@ jobs:
     name: Run Bundle Validations in Development
     runs-on: ubuntu-latest
     permissions:
+      # Required for GitHub OIDC token authentication
+      id-token: write
       contents: read
 
     steps:
@@ -28,23 +30,40 @@ jobs:
       - name: Install Databricks CLI and Dependencies
         uses: databricks/setup-cli@main
 
-      # Simplified auth using stored token
-      - name: Setup Databricks Authentication
-        id: setup_auth
+      - name: Get OIDC ID Token
+        id: get_id_token
         run: |
-          # Store token in environment variable for subsequent steps
-          echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN }}" >> $GITHUB_ENV
+          # Use the built-in ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN
+          IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://github.com/RookieDataEngineer" | jq -r '.value')
+          echo "Token obtained: ${#IDTOKEN} characters long"
+          echo "::add-mask::$IDTOKEN"
+          echo "idtoken=$IDTOKEN" >> $GITHUB_OUTPUT
+        env:
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_URL }}
+
+      - name: Exchange GitHub JWT for Databricks Token
+        id: get_databricks_token
+        run: |
+          DATABRICKS_TOKEN=$(curl --request POST "${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token" \
+            --data "client_id=${{ secrets.SERVICE_PRINCIPAL_ID }}" \
+            --data "subject_token=${{ steps.get_id_token.outputs.idtoken }}" \
+            --data 'subject_token_type=urn:ietf:params:oauth:token-type:jwt' \
+            --data 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+            --data 'scope=all-apis' | jq -r '.access_token')
+
+          echo "Using token of length: ${#DATABRICKS_TOKEN}"
+          echo "::add-mask::$DATABRICKS_TOKEN"
+          echo "DATABRICKS_TOKEN=$DATABRICKS_TOKEN" >> $GITHUB_ENV # Store token in job environment
           
-          # Validate token is available (without revealing it)
-          if [ -n "${{ secrets.DATABRICKS_TOKEN }}" ]; then
+          if [ -n "$DATABRICKS_TOKEN" ]; then
             echo "token_obtained=true" >> $GITHUB_OUTPUT
           else
             echo "token_obtained=false" >> $GITHUB_OUTPUT
-            echo "::error::No Databricks token found in secrets."
           fi
 
       - name: Update Databricks Host in Config (if necessary)
-        if: steps.setup_auth.outputs.token_obtained == 'true'
+        if: steps.get_databricks_token.outputs.token_obtained == 'true'
         run: |
           # Ensure script exists and is executable
           if [ -f ./update_bundle_host.sh ]; then
@@ -55,17 +74,18 @@ jobs:
           fi
 
       - name: Run Bundle Validation
-        if: steps.setup_auth.outputs.token_obtained == 'true'
+        if: steps.get_databricks_token.outputs.token_obtained == 'true'
         run: databricks bundle validate
         working-directory: .
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
           DATABRICKS_BUNDLE_ENV: development # Always validate in development environment
           
       # Deploy to development for validation regardless of target branch
       - name: Deploy to Development for Validation
         id: deploy_dev
-        if: steps.setup_auth.outputs.token_obtained == 'true'
+        if: steps.get_databricks_token.outputs.token_obtained == 'true'
         run: |
           echo "Deploying to development environment for validation..."
           databricks bundle deploy
@@ -73,11 +93,12 @@ jobs:
         working-directory: .
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
           DATABRICKS_BUNDLE_ENV: development  # Always deploy to development for validation
           
       - name: Get Development DLT Pipeline IDs
         id: get_pipeline_ids
-        if: steps.deploy_dev.outputs.deployment_status == 'success' && steps.setup_auth.outputs.token_obtained == 'true'
+        if: steps.deploy_dev.outputs.deployment_status == 'success' && steps.get_databricks_token.outputs.token_obtained == 'true'
         run: |
           # Ensure the script is executable
           chmod +x ./get_pipeline_ids.sh
@@ -94,10 +115,11 @@ jobs:
           fi
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
 
       - name: Validate Deployed Pipelines
         id: validate_pipelines
-        if: steps.get_pipeline_ids.outputs.pipeline_ids != '' && steps.setup_auth.outputs.token_obtained == 'true'
+        if: steps.get_pipeline_ids.outputs.pipeline_ids != '' && steps.get_databricks_token.outputs.token_obtained == 'true'
         run: |
           # Ensure the script is executable
           chmod +x ./validate_pipelines.sh
@@ -114,6 +136,7 @@ jobs:
           fi
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
 
   # Only run deploy job if validation was successful and we're on a deployment branch
   deploy:
@@ -125,6 +148,7 @@ jobs:
       github.event_name == 'push' && 
       (github.ref == 'refs/heads/development' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/production')
     permissions:
+      id-token: write
       contents: write
       pull-requests: write  # Needed for creating PRs during rollback
 
@@ -158,23 +182,40 @@ jobs:
       - name: Install Databricks CLI and Dependencies
         uses: databricks/setup-cli@main
 
-      # Simplified auth using stored token
-      - name: Setup Databricks Authentication
-        id: setup_auth
+      # --- Authentication Steps ---
+      - name: Get OIDC ID Token
+        id: get_id_token
         run: |
-          # Store token in environment variable for subsequent steps
-          echo "DATABRICKS_TOKEN=${{ secrets.DATABRICKS_TOKEN }}" >> $GITHUB_ENV
+          IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://github.com/RookieDataEngineer" | jq -r '.value')
+          echo "Token obtained: ${#IDTOKEN} characters long"
+          echo "::add-mask::$IDTOKEN"
+          echo "idtoken=$IDTOKEN" >> $GITHUB_OUTPUT
+        env:
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_URL }}
+
+      - name: Exchange GitHub JWT for Databricks Token
+        id: get_databricks_token
+        run: |
+          DATABRICKS_TOKEN=$(curl --request POST "${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token" \
+            --data "client_id=${{ secrets.SERVICE_PRINCIPAL_ID }}" \
+            --data "subject_token=${{ steps.get_id_token.outputs.idtoken }}" \
+            --data 'subject_token_type=urn:ietf:params:oauth:token-type:jwt' \
+            --data 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+            --data 'scope=all-apis' | jq -r '.access_token')
+
+          echo "Using token of length: ${#DATABRICKS_TOKEN}"
+          echo "::add-mask::$DATABRICKS_TOKEN"
+          echo "DATABRICKS_TOKEN=$DATABRICKS_TOKEN" >> $GITHUB_ENV # Store token in job environment
           
-          # Validate token is available (without revealing it)
-          if [ -n "${{ secrets.DATABRICKS_TOKEN }}" ]; then
+          if [ -n "$DATABRICKS_TOKEN" ]; then
             echo "token_obtained=true" >> $GITHUB_OUTPUT
           else
             echo "token_obtained=false" >> $GITHUB_OUTPUT
-            echo "::error::No Databricks token found in secrets."
           fi
 
       - name: Update Databricks Host in Config
-        if: steps.setup_auth.outputs.token_obtained == 'true'
+        if: steps.get_databricks_token.outputs.token_obtained == 'true'
         run: |
           if [ -f ./update_bundle_host.sh ]; then
              chmod +x ./update_bundle_host.sh
@@ -182,10 +223,11 @@ jobs:
           else
              echo "update_bundle_host.sh not found, skipping."
           fi
+      # --- End Authentication Steps ---
 
       - name: Deploy Bundle to Target Environment
         id: deploy_target
-        if: steps.setup_auth.outputs.token_obtained == 'true'
+        if: steps.get_databricks_token.outputs.token_obtained == 'true'
         run: |
           echo "Deploying to ${{ steps.determine_env.outputs.bundle_env }} environment..."
           
@@ -200,11 +242,12 @@ jobs:
         working-directory: .
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
           DATABRICKS_BUNDLE_ENV: ${{ steps.determine_env.outputs.bundle_env }}
 
       - name: Get Target DLT Pipeline IDs
         id: get_target_pipeline_ids
-        if: steps.deploy_target.outputs.deployment_status == 'success' && steps.setup_auth.outputs.token_obtained == 'true'
+        if: steps.deploy_target.outputs.deployment_status == 'success' && steps.get_databricks_token.outputs.token_obtained == 'true'
         run: |
           chmod +x ./get_pipeline_ids.sh
           SCRIPT_OUTPUT=$(./get_pipeline_ids.sh "${{ steps.determine_env.outputs.bundle_env }}")
@@ -218,10 +261,11 @@ jobs:
           fi
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
 
       - name: Validate Target Pipelines
         id: validate_target_pipelines
-        if: steps.get_target_pipeline_ids.outputs.pipeline_ids != '' && steps.setup_auth.outputs.token_obtained == 'true'
+        if: steps.get_target_pipeline_ids.outputs.pipeline_ids != '' && steps.get_databricks_token.outputs.token_obtained == 'true'
         run: |
           chmod +x ./validate_pipelines.sh
           VALIDATION_RESULT=$(./validate_pipelines.sh "${{ steps.get_target_pipeline_ids.outputs.pipeline_ids }}" "${{ steps.determine_env.outputs.bundle_env }}")
@@ -235,9 +279,10 @@ jobs:
           fi
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
           
       - name: Rollback on Target Validation Failure
-        if: steps.validate_target_pipelines.outputs.validation_status == 'failure' && steps.setup_auth.outputs.token_obtained == 'true'
+        if: steps.validate_target_pipelines.outputs.validation_status == 'failure' && steps.get_databricks_token.outputs.token_obtained == 'true'
         run: |
           # Get current branch and setup variables
           CURRENT_BRANCH=$(echo "${{ github.ref }}" | sed 's#refs/heads/##')
@@ -270,5 +315,6 @@ jobs:
           exit 1  # Indicate the workflow failed
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
           DATABRICKS_BUNDLE_ENV: ${{ steps.determine_env.outputs.bundle_env }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed for gh CLI

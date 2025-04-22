@@ -1,43 +1,54 @@
+# databricks.yml
 bundle:
-  name: dlt-pipeline-bundle
+  name: dlt-multi-pipeline-bundle
+
+# Include resource definitions globally (This is the correct placement)
+include:
+  - resources/dlt_pipelines.yml
 
 targets:
   development:
+    mode: development
     workspace:
-      # Use a placeholder string here
-      host: "DATABRICKS_HOST_PLACEHOLDER"
+      # Replace with your actual Databricks development workspace host URL
+      host: https://adb-163679638926179.19.azuredatabricks.net
+    # Resources defined here will MERGE with and OVERRIDE those from the included file
+    # for the 'development' target. Match the logical names (dlt_pipeline, etc.).
     resources:
       pipelines:
-        dlt_pipeline:
-          name: "DLT Pipeline - Development"
-          target: "development"
-          libraries:
-            - file:
-                path: "dlt_pipeline.py"
-          configuration:
-            "spark.databricks.delta.schema.autoMerge.enabled": "true"
-            "pipelines.trigger.interval": "0 0 * * * ?" # Daily at midnight
+        # --- Overrides for the first pipeline ---
+        dlt_pipeline: # Logical name must match the key in dlt_pipelines.yml
+          name: "DLT Core Pipeline - Development" # Example name
+          target: "dev_catalog.dev_core_schema" # Replace with your desired target
           channel: "preview"
           development: true
-          continuous: false
-          allow_duplicate_names: false
+
+        # --- Overrides for the second pipeline ---
+        dlt_util_test_pipeline: # Logical name must match the key in dlt_pipelines.yml
+          name: "DLT Util Testing - Development" # Example name
+          target: "dev_catalog.dev_util_test_schema" # Replace with your desired target
+          channel: "preview" # Or keep "current" if tests should run on stable DLT runtime
+          development: true
 
   production:
+    mode: production
     workspace:
-      # Same placeholder or a different one if you want separate hosts per target
-      host: "DATABRICKS_HOST_PLACEHOLDER"
+      # Replace with your actual Databricks production workspace host URL
+      host: https://adb-163679638926179.19.azuredatabricks.net
+    # Resources defined here will MERGE with and OVERRIDE those from the included file
+    # for the 'production' target. Match the logical names.
     resources:
       pipelines:
+        # --- Overrides for the first pipeline ---
         dlt_pipeline:
-          name: "DLT Pipeline - Production"
-          target: "production"
-          libraries:
-            - file:
-                path: "dlt_pipeline.py"
-          configuration:
-            "spark.databricks.delta.schema.autoMerge.enabled": "true"
-            "pipelines.trigger.interval": "0 0 * * * ?" # Daily at midnight
+          name: "DLT Core Pipeline - Production" # Example name
+          target: "prod_catalog.prod_core_schema" # Replace with your desired target
           channel: "current"
           development: false
-          continuous: false
-          allow_duplicate_names: false
+
+        # --- Overrides for the second pipeline ---
+        dlt_util_test_pipeline:
+          name: "DLT Util Testing - Production" # Example name
+          target: "prod_catalog.prod_util_test_schema" # Replace with your desired target
+          channel: "current" # Usually align channel with environment
+          development: false

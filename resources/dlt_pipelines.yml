@@ -1,0 +1,63 @@
+# resources/dlt_pipelines.yml
+resources:
+  pipelines:
+    # --- Definition for the first pipeline ('dlt_pipeline.py') ---
+    dlt_pipeline: # Logical name used for overrides in databricks.yml
+      # --- Source Code ---
+      libraries:
+        - file:
+            # Path relative to this file (resources/dlt_pipelines.yml)
+            path: "../dlt_pipeline.py"
+
+      # --- Common Pipeline Settings ---
+      configuration:
+        "spark.databricks.delta.schema.autoMerge.enabled": "true"
+        # Add other common Spark configs needed by this pipeline
+
+      # --- Compute / Cluster Configuration ---
+      clusters:
+        - label: "default"
+          node_type_id: "Standard_F4s_v2" # Minimal Azure type
+          num_workers: 1
+        - label: "maintenance"
+          node_type_id: "Standard_F4s_v2"
+
+      # --- Trigger Settings ---
+      continuous: false # Manual trigger (no specific trigger block)
+
+      # --- Other Settings ---
+      allow_duplicate_names: false
+
+      # Target-specific fields (name, target, channel, development) omitted here
+
+
+    # --- Definition for the second pipeline ('dlt_util_testing.py') ---
+    dlt_util_test_pipeline: # New, unique logical name for overrides
+      # --- Source Code ---
+      libraries:
+        - file:
+            # Path relative to this file (resources/dlt_pipelines.yml)
+            path: "../dlt_util_testing.py" # Points to the second script
+
+      # --- Common Pipeline Settings ---
+      # Assuming same base configuration, override in databricks.yml if needed
+      configuration:
+        "spark.databricks.delta.schema.autoMerge.enabled": "true"
+        # Add other common Spark configs needed by this pipeline
+
+      # --- Compute / Cluster Configuration ---
+      # Assuming same minimal cluster config, override in databricks.yml if needed
+      clusters:
+        - label: "default"
+          node_type_id: "Standard_F4s_v2" # Minimal Azure type
+          num_workers: 1
+        - label: "maintenance"
+          node_type_id: "Standard_F4s_v2"
+
+      # --- Trigger Settings ---
+      continuous: false # Manual trigger (no specific trigger block)
+
+      # --- Other Settings ---
+      allow_duplicate_names: false
+
+      # Target-specific fields (name, target, channel, development) omitted here

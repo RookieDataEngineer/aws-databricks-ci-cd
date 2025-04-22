@@ -1,0 +1,249 @@
+name: Deploy DLT Pipeline with DABs
+
+on:
+  push:
+    branches: [ '*' ]  # Trigger on push to any branch for validation, deployment on specific branches
+  pull_request:
+    branches: [ '*' ]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  validate:
+    name: Run Bundle Validations
+    runs-on: ubuntu-latest
+    permissions:
+      # Required for GitHub OIDC token authentication
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4 # Use v4
+        with:
+          fetch-depth: 0 # Fetch full history for accurate bundle comparison
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5 # Use v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Databricks CLI and Dependencies
+        uses: databricks/setup-cli@main
+
+      - name: Get OIDC ID Token
+        id: get_id_token
+        run: |
+          # Use the built-in ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN
+          # See: https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-cloud-providers#adding-the-permissions-setting
+          IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://github.com/RookieDataEngineer" | jq -r '.value')
+          echo "Token obtained: ${#IDTOKEN} characters long"
+          echo "::add-mask::$IDTOKEN"
+          echo "idtoken=$IDTOKEN" >> $GITHUB_OUTPUT
+        env:
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_URL }}
+
+      - name: Exchange GitHub JWT for Databricks Token
+        id: get_databricks_token
+        run: |
+          DATABRICKS_TOKEN=$(curl --request POST "${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token" \
+            --data "client_id=${{ secrets.SERVICE_PRINCIPAL_ID }}" \
+            --data "subject_token=${{ steps.get_id_token.outputs.idtoken }}" \
+            --data 'subject_token_type=urn:ietf:params:oauth:token-type:jwt' \
+            --data 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+            --data 'scope=all-apis' | jq -r '.access_token')
+
+          echo "Using token of length: ${#DATABRICKS_TOKEN}"
+          echo "::add-mask::$DATABRICKS_TOKEN"
+          echo "DATABRICKS_TOKEN=$DATABRICKS_TOKEN" >> $GITHUB_ENV # Store token in job environment
+
+      - name: Update Databricks Host in Config (if necessary)
+        # Only run this if your bundle file uses a placeholder that needs replacement
+        # If your bundle targets handle the host via DATABRICKS_HOST env var, you might not need this script
+        if: steps.get_databricks_token.outputs.DATABRICKS_TOKEN != '' # Basic check if token exists
+        run: |
+          # Ensure script exists and is executable
+          if [ -f ./update_bundle_host.sh ]; then
+             chmod +x ./update_bundle_host.sh
+             ./update_bundle_host.sh "${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
+          else
+             echo "update_bundle_host.sh not found, skipping."
+          fi
+
+      - name: Run Bundle Validation
+        if: steps.get_databricks_token.outputs.DATABRICKS_TOKEN != '' # Basic check if token exists
+        run: databricks bundle validate
+        working-directory: .
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }} # Use token from job environment
+          DATABRICKS_BUNDLE_ENV: development # Or dynamically determine based on branch/PR
+
+  deploy:
+    name: Deploy and Validate Application
+    runs-on: ubuntu-latest
+    needs: [validate]
+    # Deploy only on push events to specific branches
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/development' || github.ref == 'refs/heads/staging' || github.ref == 'refs/heads/production')
+    permissions:
+      # Required for GitHub OIDC token authentication
+      id-token: write
+      contents: write # Needs write permission to checkout previous commit during rollback
+
+    steps:
+      - name: Checkout Code (Current Commit)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }} # Checkout the specific commit being pushed
+          fetch-depth: 0 # Fetch history needed for rollback checkout
+
+      - name: Determine Target Environment
+        id: determine_env
+        run: |
+          BRANCH_NAME=$(echo "${{ github.ref }}" | sed 's#refs/heads/##')
+          echo "Branch name: $BRANCH_NAME"
+          # Simple mapping, adjust as needed
+          if [[ "$BRANCH_NAME" == "production" ]]; then
+            echo "bundle_env=production" >> $GITHUB_OUTPUT
+          elif [[ "$BRANCH_NAME" == "staging" ]]; then
+            echo "bundle_env=staging" >> $GITHUB_OUTPUT
+          else
+            # Default to development for 'development' branch or others if logic allows
+            echo "bundle_env=development" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Databricks CLI and Dependencies
+        uses: databricks/setup-cli@main
+
+      # --- Authentication Steps (Repeated for the Deploy Job) ---
+      - name: Get OIDC ID Token
+        id: get_id_token
+        run: |
+          IDTOKEN=$(curl -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://github.com/RookieDataEngineer" | jq -r '.value')
+          echo "Token obtained: ${#IDTOKEN} characters long"
+          echo "::add-mask::$IDTOKEN"
+          echo "idtoken=$IDTOKEN" >> $GITHUB_OUTPUT
+        env:
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+          ACTIONS_ID_TOKEN_REQUEST_URL: ${{ secrets.ACTIONS_ID_TOKEN_REQUEST_URL }}
+
+      - name: Exchange GitHub JWT for Databricks Token
+        id: get_databricks_token # Give it the same ID for consistency
+        run: |
+          DATABRICKS_TOKEN=$(curl --request POST "${{ secrets.DATABRICKS_WORKSPACE_HOST }}/oidc/v1/token" \
+            --data "client_id=${{ secrets.SERVICE_PRINCIPAL_ID }}" \
+            --data "subject_token=${{ steps.get_id_token.outputs.idtoken }}" \
+            --data 'subject_token_type=urn:ietf:params:oauth:token-type:jwt' \
+            --data 'grant_type=urn:ietf:params:oauth:grant-type:token-exchange' \
+            --data 'scope=all-apis' | jq -r '.access_token')
+
+          echo "Using token of length: ${#DATABRICKS_TOKEN}"
+          echo "::add-mask::$DATABRICKS_TOKEN"
+          echo "DATABRICKS_TOKEN=$DATABRICKS_TOKEN" >> $GITHUB_ENV # Store token in job environment
+
+      - name: Update Databricks Host in Config (if necessary)
+        if: steps.get_databricks_token.outputs.DATABRICKS_TOKEN != ''
+        run: |
+          if [ -f ./update_bundle_host.sh ]; then
+             chmod +x ./update_bundle_host.sh
+             ./update_bundle_host.sh "${{ secrets.DATABRICKS_WORKSPACE_HOST }}"
+          else
+             echo "update_bundle_host.sh not found, skipping."
+          fi
+      # --- End Authentication Steps ---
+
+      - name: Deploy Bundle
+        if: steps.get_databricks_token.outputs.DATABRICKS_TOKEN != ''
+        run: databricks bundle deploy
+        working-directory: .
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+          DATABRICKS_BUNDLE_ENV: ${{ steps.determine_env.outputs.bundle_env }}
+
+      - name: Get Deployed DLT Pipeline IDs
+        id: get_pipeline_ids
+        if: steps.get_databricks_token.outputs.DATABRICKS_TOKEN != ''
+        run: |
+          echo "Fetching pipeline IDs managed by the bundle for environment: ${{ steps.determine_env.outputs.bundle_env }}"
+          # Use databricks bundle list and filter for pipelines
+          # The output structure might vary slightly, adjust jq query if needed
+          PIPELINE_IDS=$(databricks bundle list -e ${{ steps.determine_env.outputs.bundle_env }} --output json | jq -r '.resources[] | select(.pipeline != null) | .pipeline.id')
+
+          if [ -z "$PIPELINE_IDS" ]; then
+            echo "No DLT pipelines found managed by the bundle in this environment."
+            echo "pipeline_ids=''" >> $GITHUB_OUTPUT
+          else
+            echo "Found Pipeline IDs:"
+            echo "$PIPELINE_IDS"
+            # Store IDs as a space-separated string for easier iteration in bash
+            IDS_ONELINE=$(echo $PIPELINE_IDS | tr '\n' ' ')
+            echo "pipeline_ids=$IDS_ONELINE" >> $GITHUB_OUTPUT
+          fi
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+          DATABRICKS_BUNDLE_ENV: ${{ steps.determine_env.outputs.bundle_env }}
+
+      - name: Validate Deployed Pipelines
+        id: validate_pipelines
+        # Only run if pipeline IDs were found
+        if: steps.get_pipeline_ids.outputs.pipeline_ids != '' && steps.get_databricks_token.outputs.DATABRICKS_TOKEN != ''
+        run: |
+          PIPELINE_IDS="${{ steps.get_pipeline_ids.outputs.pipeline_ids }}"
+          VALIDATION_FAILED=false
+
+          echo "Starting validation for pipelines: $PIPELINE_IDS"
+
+          for pipeline_id in $PIPELINE_IDS; do
+            echo "Validating pipeline: $pipeline_id"
+            if databricks pipelines start --pipeline-id "$pipeline_id" --validate-only; then
+              echo "Pipeline $pipeline_id validation successful."
+            else
+              echo "::error::Pipeline $pipeline_id validation FAILED."
+              VALIDATION_FAILED=true
+              # Optional: break # Uncomment if you want to stop validation on the first failure
+            fi
+          done
+
+          if [ "$VALIDATION_FAILED" = true ]; then
+            echo "validation_status=failure" >> $GITHUB_OUTPUT
+            echo "::error::One or more pipeline validations failed."
+            # Exiting with non-zero status is not strictly necessary here
+            # as we use the output for the rollback step's condition
+          else
+            echo "validation_status=success" >> $GITHUB_OUTPUT
+            echo "All pipeline validations passed."
+          fi
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+
+      - name: Rollback on Validation Failure
+        # Run only if the previous step set status to failure
+        if: steps.validate_pipelines.outputs.validation_status == 'failure' && steps.get_databricks_token.outputs.DATABRICKS_TOKEN != ''
+        run: |
+          echo "::warning::Pipeline validation failed. Initiating rollback to previous commit (${{ github.event.before }})."
+
+          # Checkout the commit before the push that triggered this workflow
+          git checkout ${{ github.event.before }}
+
+          echo "Checked out previous commit. Redeploying bundle..."
+
+          # Re-run deploy with the previous version of the code
+          databricks bundle deploy
+
+          # Important: Fail the workflow step to indicate the overall process failed
+          echo "::error::Rollback complete due to validation failure. Original deployment failed."
+          exit 1
+        working-directory: .
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_TOKEN: ${{ env.DATABRICKS_TOKEN }}
+          DATABRICKS_BUNDLE_ENV: ${{ steps.determine_env.outputs.bundle_env }}

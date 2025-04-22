@@ -68,7 +68,7 @@ jobs:
         if: steps.setup_auth.outputs.token_obtained == 'true'
         run: |
           echo "Deploying to development environment for validation..."
-          databricks bundle deploy
+          databricks bundle deploy --auto-approve
           echo "deployment_status=success" >> $GITHUB_OUTPUT
         working-directory: .
         env:

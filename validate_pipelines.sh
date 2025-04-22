@@ -145,11 +145,11 @@ while [ "$all_complete" = false ]; do
   fi
 done
 
-# --- Output Final Result ---
 if [ "$VALIDATION_FAILED" = true ]; then
   echo "failure"
+  # Exit with non-zero status to signal failure to GitHub Actions
+  exit 1
 else
   echo "success"
+  exit 0
 fi
-
-exit 0

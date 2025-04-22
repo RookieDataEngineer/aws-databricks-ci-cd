@@ -103,14 +103,19 @@ jobs:
           chmod +x ./validate_pipelines.sh
           
           # Execute the script, passing the pipeline IDs and 'development' as target
-          VALIDATION_RESULT=$(./validate_pipelines.sh "${{ steps.get_pipeline_ids.outputs.pipeline_ids }}" "development")
+          set +e  # Don't let the GitHub Action exit on script failure
+          ./validate_pipelines.sh "${{ steps.get_pipeline_ids.outputs.pipeline_ids }}" "development"
+          SCRIPT_EXIT_CODE=$?
+          set -e
           
-          if [ "$VALIDATION_RESULT" = "success" ]; then
+          # Check the exit code from the script
+          if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
             echo "validation_status=success" >> $GITHUB_OUTPUT
             echo "All pipeline validations passed."
           else
             echo "validation_status=failure" >> $GITHUB_OUTPUT
             echo "::error::One or more pipeline validations failed."
+            exit 1  # Fail the GitHub Action step
           fi
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}

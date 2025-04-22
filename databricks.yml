@@ -23,12 +23,12 @@ targets:
           channel: "preview"
           development: true
 
-        # # --- Overrides for the second pipeline ---
-        # dlt_util_test_pipeline: # Logical name must match the key in dlt_pipelines.yml
-        #   name: "DLT Util Testing - Development" # Example name
-        #   target: "atlaspoc.poc_schema" # Replace with your desired target
-        #   channel: "preview" # Or keep "current" if tests should run on stable DLT runtime
-        #   development: true
+        # --- Overrides for the second pipeline ---
+        dlt_util_test_pipeline: # Logical name must match the key in dlt_pipelines.yml
+          name: "DLT Util Testing - Development" # Example name
+          target: "atlaspoc.poc_schema" # Replace with your desired target
+          channel: "preview" # Or keep "current" if tests should run on stable DLT runtime
+          development: true
 
   production:
     mode: production

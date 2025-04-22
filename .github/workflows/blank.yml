@@ -225,14 +225,14 @@ jobs:
       - name: Validate Target Pipelines
         id: validate_target_pipelines
         if: steps.get_target_pipeline_ids.outputs.pipeline_ids != '' && steps.setup_auth.outputs.token_obtained == 'true'
+        continue-on-error: true  
         run: |
           chmod +x ./validate_pipelines.sh
-
-                    set +e  # Don't let the GitHub Action exit on script failure
+          set +e  # Don't let the GitHub Action exit on script failure
           ./validate_pipelines.sh "${{ steps.get_target_pipeline_ids.outputs.pipeline_ids }}" "${{ steps.determine_env.outputs.bundle_env }}"
           SCRIPT_EXIT_CODE=$?
           set -e
-          
+         
           # Check the exit code from the script
           if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
             echo "validation_status=success" >> $GITHUB_OUTPUT
@@ -240,7 +240,7 @@ jobs:
           else
             echo "validation_status=failure" >> $GITHUB_OUTPUT
             echo "::error::One or more pipeline validations failed."
-            exit 1  # Fail the GitHub Action step
+            # Don't exit with status 1 - we want to continue to the rollback step
           fi
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}

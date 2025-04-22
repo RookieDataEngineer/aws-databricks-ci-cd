@@ -103,7 +103,7 @@ while [ "$all_complete" = false ]; do
       echo "Update $update_id state: $UPDATE_STATE" >&2
       
       # Check if the update is still in progress
-      if [[ "$UPDATE_STATE" == "IDLE" || "$UPDATE_STATE" == "PENDING" || "$UPDATE_STATE" == "RUNNING" || "$UPDATE_STATE" == "INITIALIZING" ]]; then
+      if [[ "$UPDATE_STATE" == "IDLE" ||   "$UPDATE_STATE" == "CREATED" || "$UPDATE_STATE" == "PENDING" || "$UPDATE_STATE" == "RUNNING" || "$UPDATE_STATE" == "INITIALIZING" ]]; then
         all_complete=false
       # Check if the update failed
       elif [[ "$UPDATE_STATE" == "FAILED" || "$UPDATE_STATE" == "CANCELED" || "$UPDATE_STATE" == "TIMEDOUT" ]]; then

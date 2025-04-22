@@ -34,7 +34,26 @@ echo "Starting validation for pipelines: $PIPELINE_IDS_CSV" >&2
 for pipeline_id in "${PIPELINE_ID_ARRAY[@]}"; do
   echo "Triggering validation for pipeline: $pipeline_id" >&2
   
-  # Use set +e temporarily to prevent script from exiting on command failure
+  # Check for active updates and stop them if needed
+  echo "Checking for active updates for pipeline: $pipeline_id" >&2
+  
+  set +e
+  ACTIVE_UPDATES=$(databricks pipelines list-updates "$pipeline_id" -t "$TARGET_ENV" --output json | jq -r '.updates[] | select(.state != "COMPLETED" and .state != "FAILED" and .state != "CANCELED") | .update_id')
+  set -e
+  
+  if [ -n "$ACTIVE_UPDATES" ]; then
+    echo "Found active updates for pipeline $pipeline_id. Stopping them before validation." >&2
+    for active_update in $ACTIVE_UPDATES; do
+      echo "Stopping update $active_update for pipeline $pipeline_id" >&2
+      set +e
+      databricks pipelines stop "$pipeline_id" -t "$TARGET_ENV" --update-id "$active_update"
+      set -e
+      # Wait a moment to ensure the update is fully stopped
+      sleep 5
+    done
+  fi
+  
+  # Now trigger the validation
   set +e
   UPDATE_JSON=$(databricks pipelines start-update "$pipeline_id" --validate-only -t "$TARGET_ENV" --output json)
   TRIGGER_RESULT=$?
@@ -103,7 +122,7 @@ while [ "$all_complete" = false ]; do
       echo "Update $update_id state: $UPDATE_STATE" >&2
       
       # Check if the update is still in progress
-      if [[ "$UPDATE_STATE" == "IDLE" ||   "$UPDATE_STATE" == "CREATED" || "$UPDATE_STATE" == "PENDING" || "$UPDATE_STATE" == "RUNNING" || "$UPDATE_STATE" == "INITIALIZING" ]]; then
+      if [[ "$UPDATE_STATE" == "IDLE" ||  "$UPDATE_STATE" == "CREATED" || "$UPDATE_STATE" == "PENDING" || "$UPDATE_STATE" == "RUNNING" || "$UPDATE_STATE" == "INITIALIZING" ]]; then
         all_complete=false
       # Check if the update failed
       elif [[ "$UPDATE_STATE" == "FAILED" || "$UPDATE_STATE" == "CANCELED" || "$UPDATE_STATE" == "TIMEDOUT" ]]; then

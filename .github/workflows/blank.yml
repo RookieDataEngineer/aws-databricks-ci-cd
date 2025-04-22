@@ -195,7 +195,7 @@ jobs:
           echo "Deploying to ${{ steps.determine_env.outputs.bundle_env }} environment..."
           
           # Try to deploy to the target environment
-          if databricks bundle deploy; then
+          if databricks bundle deploy --auto-approve; then
             echo "deployment_status=success" >> $GITHUB_OUTPUT
             echo "Successfully deployed to ${{ steps.determine_env.outputs.bundle_env }} environment."
           else

@@ -19,16 +19,16 @@ targets:
         # --- Overrides for the first pipeline ---
         dlt_pipeline: # Logical name must match the key in dlt_pipelines.yml
           name: "DLT Core Pipeline - Development" # Example name
-          target: "dev_catalog.dev_core_schema" # Replace with your desired target
+          target: "atlaspoc.poc_schema" # Replace with your desired target
           channel: "preview"
           development: true
 
-        # --- Overrides for the second pipeline ---
-        dlt_util_test_pipeline: # Logical name must match the key in dlt_pipelines.yml
-          name: "DLT Util Testing - Development" # Example name
-          target: "dev_catalog.dev_util_test_schema" # Replace with your desired target
-          channel: "preview" # Or keep "current" if tests should run on stable DLT runtime
-          development: true
+        # # --- Overrides for the second pipeline ---
+        # dlt_util_test_pipeline: # Logical name must match the key in dlt_pipelines.yml
+        #   name: "DLT Util Testing - Development" # Example name
+        #   target: "atlaspoc.poc_schema" # Replace with your desired target
+        #   channel: "preview" # Or keep "current" if tests should run on stable DLT runtime
+        #   development: true
 
   production:
     mode: production
@@ -42,13 +42,13 @@ targets:
         # --- Overrides for the first pipeline ---
         dlt_pipeline:
           name: "DLT Core Pipeline - Production" # Example name
-          target: "prod_catalog.prod_core_schema" # Replace with your desired target
+          target: "atlaspoc.poc_schema" # Replace with your desired target
           channel: "current"
           development: false
 
-        # --- Overrides for the second pipeline ---
-        dlt_util_test_pipeline:
-          name: "DLT Util Testing - Production" # Example name
-          target: "prod_catalog.prod_util_test_schema" # Replace with your desired target
-          channel: "current" # Usually align channel with environment
-          development: false
+        # # --- Overrides for the second pipeline ---
+        # dlt_util_test_pipeline:
+        #   name: "DLT Util Testing - Production" # Example name
+        #   target: "atlaspoc.poc_schema" # Replace with your desired target
+        #   channel: "current" # Usually align channel with environment
+        #   development: false

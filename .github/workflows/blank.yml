@@ -255,29 +255,13 @@ jobs:
           
           echo "::warning::Pipeline validation failed in ${{ steps.determine_env.outputs.bundle_env }}. Initiating rollback."
           
-          # 1. Create rollback branch with previous commit state
-          echo "Creating rollback branch: $ROLLBACK_BRANCH"
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions@github.com"
-          git checkout -b "$ROLLBACK_BRANCH" "$PREVIOUS_COMMIT"
-          
-          # 2. Deploy previous state to target environment
+          # 1. Deploy previous state to target environment without creating a branch
           echo "Deploying previous version to ${{ steps.determine_env.outputs.bundle_env }}..."
+          git checkout "$PREVIOUS_COMMIT"
           databricks bundle deploy
           
-          # 3. Push rollback branch and create PR
-          git push origin "$ROLLBACK_BRANCH"
-          
-          # 4. Create PR using GitHub CLI
-          gh pr create \
-            --base "$CURRENT_BRANCH" \
-            --head "$ROLLBACK_BRANCH" \
-            --title "ROLLBACK: Revert $CURRENT_BRANCH to previous state" \
-            --body "Automated rollback due to failed pipeline validation in ${{ steps.determine_env.outputs.bundle_env }} environment. This PR reverts $CURRENT_BRANCH to commit $PREVIOUS_COMMIT."
-            
-          echo "::error::Rollback completed. A PR has been created to revert $CURRENT_BRANCH to the previous state."
+          echo "::error::Rollback of Databricks resources completed. Manual action needed: This pipeline version has issues, please check the logs and fix before redeploying."
           exit 1  # Indicate the workflow failed
         env:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
           DATABRICKS_BUNDLE_ENV: ${{ steps.determine_env.outputs.bundle_env }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Needed for gh CLI

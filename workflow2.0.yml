@@ -62,63 +62,63 @@ jobs:
           DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
           DATABRICKS_BUNDLE_ENV: development # Always validate in development environment
           
-      # # Deploy to development for validation regardless of target branch
-      # - name: Deploy to Development for Validation
-      #   id: deploy_dev
-      #   if: steps.setup_auth.outputs.token_obtained == 'true'
-      #   run: |
-      #     echo "Deploying to development environment for validation..."
-      #     databricks bundle deploy --auto-approve
-      #     echo "deployment_status=success" >> $GITHUB_OUTPUT
-      #   working-directory: .
-      #   env:
-      #     DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
-      #     DATABRICKS_BUNDLE_ENV: development  # Always deploy to development for validation
+      # Deploy to development for validation regardless of target branch
+      - name: Deploy to Development for Validation
+        id: deploy_dev
+        if: steps.setup_auth.outputs.token_obtained == 'true'
+        run: |
+          echo "Deploying to development environment for validation..."
+          databricks bundle deploy --auto-approve
+          echo "deployment_status=success" >> $GITHUB_OUTPUT
+        working-directory: .
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          DATABRICKS_BUNDLE_ENV: development  # Always deploy to development for validation
           
-      # - name: Get Development DLT Pipeline IDs
-      #   id: get_pipeline_ids
-      #   if: steps.deploy_dev.outputs.deployment_status == 'success' && steps.setup_auth.outputs.token_obtained == 'true'
-      #   run: |
-      #     # Ensure the script is executable
-      #     chmod +x ./get_pipeline_ids.sh
+      - name: Get Development DLT Pipeline IDs
+        id: get_pipeline_ids
+        if: steps.deploy_dev.outputs.deployment_status == 'success' && steps.setup_auth.outputs.token_obtained == 'true'
+        run: |
+          # Ensure the script is executable
+          chmod +x ./get_pipeline_ids.sh
           
-      #     # Execute the script, always passing 'development' as the target environment
-      #     SCRIPT_OUTPUT=$(./get_pipeline_ids.sh "development")
+          # Execute the script, always passing 'development' as the target environment
+          SCRIPT_OUTPUT=$(./get_pipeline_ids.sh "development")
           
-      #     if [ -z "$SCRIPT_OUTPUT" ]; then
-      #       echo "Script returned no pipeline IDs. This might be expected or indicate an issue (check logs above)."
-      #       echo "pipeline_ids=''" >> $GITHUB_OUTPUT
-      #     else
-      #       echo "Script successfully returned pipeline IDs: $SCRIPT_OUTPUT"
-      #       echo "pipeline_ids=$SCRIPT_OUTPUT" >> $GITHUB_OUTPUT
-      #     fi
-      #   env:
-      #     DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          if [ -z "$SCRIPT_OUTPUT" ]; then
+            echo "Script returned no pipeline IDs. This might be expected or indicate an issue (check logs above)."
+            echo "pipeline_ids=''" >> $GITHUB_OUTPUT
+          else
+            echo "Script successfully returned pipeline IDs: $SCRIPT_OUTPUT"
+            echo "pipeline_ids=$SCRIPT_OUTPUT" >> $GITHUB_OUTPUT
+          fi
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
 
-      # - name: Validate Deployed Pipelines
-      #   id: validate_pipelines
-      #   if: steps.get_pipeline_ids.outputs.pipeline_ids != '' && steps.setup_auth.outputs.token_obtained == 'true'
-      #   run: |
-      #     # Ensure the script is executable
-      #     chmod +x ./validate_pipelines.sh
+      - name: Validate Deployed Pipelines
+        id: validate_pipelines
+        if: steps.get_pipeline_ids.outputs.pipeline_ids != '' && steps.setup_auth.outputs.token_obtained == 'true'
+        run: |
+          # Ensure the script is executable
+          chmod +x ./validate_pipelines.sh
           
-      #     # Execute the script, passing the pipeline IDs and 'development' as target
-      #     set +e  # Don't let the GitHub Action exit on script failure
-      #     ./validate_pipelines.sh "${{ steps.get_pipeline_ids.outputs.pipeline_ids }}" "development"
-      #     SCRIPT_EXIT_CODE=$?
-      #     set -e
+          # Execute the script, passing the pipeline IDs and 'development' as target
+          set +e  # Don't let the GitHub Action exit on script failure
+          ./validate_pipelines.sh "${{ steps.get_pipeline_ids.outputs.pipeline_ids }}" "development"
+          SCRIPT_EXIT_CODE=$?
+          set -e
           
-      #     # Check the exit code from the script
-      #     if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
-      #       echo "validation_status=success" >> $GITHUB_OUTPUT
-      #       echo "All pipeline validations passed."
-      #     else
-      #       echo "validation_status=failure" >> $GITHUB_OUTPUT
-      #       echo "::error::One or more pipeline validations failed."
-      #       exit 1  # Fail the GitHub Action step
-      #     fi
-      #   env:
-      #     DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
+          # Check the exit code from the script
+          if [ $SCRIPT_EXIT_CODE -eq 0 ]; then
+            echo "validation_status=success" >> $GITHUB_OUTPUT
+            echo "All pipeline validations passed."
+          else
+            echo "validation_status=failure" >> $GITHUB_OUTPUT
+            echo "::error::One or more pipeline validations failed."
+            exit 1  # Fail the GitHub Action step
+          fi
+        env:
+          DATABRICKS_HOST: ${{ secrets.DATABRICKS_WORKSPACE_HOST }}
 
   # Only run deploy job if validation was successful and we're on a deployment branch
   deploy:
